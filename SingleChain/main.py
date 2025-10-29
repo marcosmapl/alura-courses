@@ -10,23 +10,51 @@ import os
 
 
 class CNAE(BaseModel):
+    """
+    CNAE model representing a recommended National Classification of Economic Activities code and the reason for the recommendation.
+
+    Attributes:
+        cnae (str): The recommended CNAE code (a string identifying the economic activity).
+        motivo (str): A human-readable explanation describing why this CNAE code was recommended.
+
+    Usage example:
+        >>> CNAE(cnae="62.01-5-01", motivo="Desenvolvimento de software sob encomenda")
+    """
     cnae: str = Field("O código CNAE (classificação nacional de atividades econômicas) recomendado.")
     motivo: str = Field("O motivo pelo qual o código CNAE foi recomendado.")
 
 
 class Semelhante(BaseModel):
+    """
+    A class representing CNAE (National Classification of Economic Activities) codes and their similarities.
+
+    This class extends BaseModel and provides a structure to store a CNAE code along with
+    its similar codes.
+
+    Attributes:
+        cnae (str): The recommended CNAE code.
+        semelhantes (list[str]): A list of names of similar CNAE codes.
+
+    Example:
+        >>> semelhante = Semelhante(
+        ...     cnae="4751-2/01",
+        ...     semelhantes=["4751-2/02", "4751-2/03"]
+        ... )
+    """
     cnae: str = Field("O código CNAE (classificação nacional de atividades econômicas) recomendado.")
     semelhantes: list[str] = Field("Uma lista com os nomes outros códigos CNAE semelhantes.")
 
-
+# Enable debug mode and load environment variables
 set_debug(True)
+
+# Load environment variables from .env file
 load_dotenv()
 
 # Initialize the JSON output parser
 parser_cnae = JsonOutputParser(pydantic_object=CNAE)
 parser_semelhante = JsonOutputParser(pydantic_object=Semelhante)
 
-# Define the prompt template
+# Define the prompt templates
 prompt_cnae = PromptTemplate(
     template="""
     Sugira um código CNAE (classificação nacionale de atividades econômicas) para uma empresa que executa as atividades de: {atividades}.
