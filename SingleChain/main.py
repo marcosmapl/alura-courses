@@ -1,6 +1,3 @@
-"""
-Python script to generate a personalized travel itinerary using OpenAI's API.
-"""
 # from openai import OpenAI
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
@@ -12,43 +9,43 @@ from pydantic import BaseModel, Field
 import os
 
 
-class Destino(BaseModel):
-    cidade: str = Field("A cidade recomendada para visitar.")
-    motivo: str = Field("O motivo pelo qual a cidade foi recomendada.")
+class CNAE(BaseModel):
+    cnae: str = Field("O código CNAE (classificação nacional de atividades econômicas) recomendado.")
+    motivo: str = Field("O motivo pelo qual o código CNAE foi recomendado.")
 
 
-class Restaurantes(BaseModel):
-    cidade: str = Field("A cidade recomendada para visitar.")
-    restaurantes: list[str] = Field("Uma lista com os nomes dos restaurantes recomendados na cidade.")
+class Semelhante(BaseModel):
+    cnae: str = Field("O código CNAE (classificação nacional de atividades econômicas) recomendado.")
+    semelhantes: list[str] = Field("Uma lista com os nomes outros códigos CNAE semelhantes.")
 
 
 set_debug(True)
 load_dotenv()
 
 # Initialize the JSON output parser
-parser_destino = JsonOutputParser(pydantic_object=Destino)
-parser_restaurante = JsonOutputParser(pydantic_object=Restaurantes)
+parser_cnae = JsonOutputParser(pydantic_object=CNAE)
+parser_semelhante = JsonOutputParser(pydantic_object=Semelhante)
 
 # Define the prompt template
-prompt_destino = PromptTemplate(
+prompt_cnae = PromptTemplate(
     template="""
-    Sugira uma cidade para visitar dado o meu interesse por {interests}.
+    Sugira um código CNAE (classificação nacionale de atividades econômicas) para uma empresa que executa as atividades de: {atividades}.
     {output_format}
     """,
-    input_variables=["interests"],
-    partial_variables={'output_format': parser_destino.get_format_instructions()}
+    input_variables=["atividades"],
+    partial_variables={'output_format': parser_cnae.get_format_instructions()}
 )
 
-prompt_restaurante = PromptTemplate(
+prompt_semelhante = PromptTemplate(
     template="""
-    Sugira restaurantes populares da cidade {cidade}.
+    Sugira outros códigos CNAE semelhantes ao código: {cnae}.
     {output_format}
     """,
-    partial_variables={'output_format': parser_restaurante.get_format_instructions()}
+    partial_variables={'output_format': parser_semelhante.get_format_instructions()}
 )
 
-prompt_cultural = PromptTemplate(
-    template="""Sugira atividades culturais para fazer em {cidade}."""
+prompt_impostos = PromptTemplate(
+    template="""Liste quais os impostos que podem incidir para o código CNAE: {cnae}."""
 )
 
 # Initialize the OpenAI client
@@ -59,22 +56,22 @@ model = ChatOpenAI(
 )
 
 # Collect user inputs
-interests = input("Quais são os interesses da sua viagem? (ex: aventura, cultura, gastronomia): ")
+atividades = input("Descreva resumidamente as atividades exercidas pela sua empresa: ")
 
 # Define the variables for the prompt
 vars = {
-    "interests": interests,
+    "atividades": atividades,
 }
 
 # Create the chains
-chain_destino = prompt_destino | model | parser_destino
-chain_restaurante = prompt_restaurante | model | parser_restaurante
-chain_cultural = prompt_cultural | model | StrOutputParser()
+chain_cnae = prompt_cnae | model | parser_cnae
+chain_semelhante = prompt_semelhante | model | parser_semelhante
+chain_impostos = prompt_impostos | model | StrOutputParser()
 
-chain_viajai = (chain_destino | chain_restaurante | chain_cultural)
+chain_principal = (chain_cnae | chain_semelhante | chain_impostos)
 
 # Invoke the chain with user inputs
-response = chain_viajai.invoke(
+response = chain_principal.invoke(
     vars
 )
 

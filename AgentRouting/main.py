@@ -3,12 +3,22 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from typing import TypedDict, Literal
+from langgraph.graph import StateGraph, START, END
+from langchain_core.runnables import RunnableConfig
+
 
 import os
+import asyncio
 
 
-class AgentRoutes(TypedDict):
+class AgentRoute(TypedDict):
     route: Literal["aventura", "praia", "gastronomia"]
+
+
+class AgentState(TypedDict):
+    query: str
+    destino: AgentRoute
+    resposta: str
 
 
 load_dotenv()
@@ -50,32 +60,56 @@ prompt_routing = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain_praias = prompt_agent_beach | model | StrOutputParser()
-chain_gastronomia = prompt_agent_gastronomia | model | StrOutputParser()
 chain_aventura = prompt_agent_aventura | model | StrOutputParser()
+chain_praia = prompt_agent_beach | model | StrOutputParser()
+chain_gastronomia = prompt_agent_gastronomia | model | StrOutputParser()
 
-agent_router = prompt_routing | model.with_structured_output(AgentRoutes)
+agent_router = prompt_routing | model.with_structured_output(AgentRoute)
+
+async def node_routing(state: AgentState, config=RunnableConfig):
+    return {
+        'destino': await agent_router.ainvoke({'query': state['query']}, config=config)
+    }
+
+async def node_praia(state: AgentState, config=RunnableConfig):
+    return {
+        'resposta': await chain_praia.ainvoke({'query': state['query']}, config=config)
+    }
+
+async def node_aventura(state: AgentState, config=RunnableConfig):
+    return {
+        'resposta': await chain_aventura.ainvoke({'query': state['query']}, config=config)
+    }
+
+async def node_gastronomia(state: AgentState, config=RunnableConfig):
+    return {
+        'resposta': await chain_gastronomia.ainvoke({'query': state['query']}, config=config)
+    }
 
 
-def seleciona_agente(query: str, router) -> str:
-    response = router.invoke(
-        {"query": query}
-    )['route']
+def node_select(state: AgentState) -> Literal['praia', 'aventura', 'gastronomia']:
+    return state['destino']['route']
+
+
+grafo = StateGraph(AgentState)
+grafo.add_node('rotear', node_routing, outputs=['destino'])
+grafo.add_node('aventura', node_aventura, outputs=['resposta']) 
+grafo.add_node('gastronomia', node_gastronomia, outputs=['resposta'])
+grafo.add_node('praia', node_praia, outputs=['resposta'])
+
+grafo.add_edge(START, 'rotear')
+grafo.add_conditional_edges('rotear', node_select)
+grafo.add_edge('aventura', END)
+grafo.add_edge('gastronomia', END)
+grafo.add_edge('praia', END)
+
+app = grafo.compile()
+
+async def main():
+    query = input('Descreva o tipo de viagem que pretende fazer: ')
+    resposta = await app.ainvoke(
+        {'query': query}
+    )
+    print(resposta['resposta'])
     
-    print(response)
-    
-    if str(response).lower() == 'praia':
-        return chain_praias
-    elif str(response).lower() == 'aventura':
-        return chain_aventura
-    
-    return chain_gastronomia
-
-
-query = input('Qual o seu objetivo de viagem? ')
-agent = seleciona_agente(query, agent_router)
-response = agent.invoke(
-    {"query": query}
-)   
-
-print(response)
+asyncio.run(main())
