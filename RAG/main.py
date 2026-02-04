@@ -100,7 +100,7 @@ def rag_query(query: str) -> str:
     """
     relevant_chunks = vectorstore.invoke(query)
     print(relevant_chunks)
-    context = "\n\n".join([relevant_chunk.page_content for relevant_chunk in relevant_chunks])
+    context = "\n\n".join([relevant_chunks.page_content for relevant_chunks in relevant_chunks])
     resposta = chain.invoke(
         {
             "query": query,
